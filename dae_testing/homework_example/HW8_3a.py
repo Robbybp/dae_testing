@@ -69,6 +69,9 @@ def display_values_and_plot(m, file_prefix=None):
     x1_list = []
     x3_list = []
     x2_list = []
+
+    # u might not be defined for all time
+    u_t_list = []
     u_list = []
     for t in m.t: 
         x1 = value(m.x1[t])
@@ -80,10 +83,15 @@ def display_values_and_plot(m, file_prefix=None):
         x3 = value(m.x3[t])
         x3_list.append(x3)
 
-        u = value(m.u[t])
-        u_list.append(u)
+        if m.u[t].value is not None:
+            u = value(m.u[t])
+            u_list.append(u)
+            u_t_list.append(t)
 
-    print(value(m.u[0]))
+    if m.u[0].value is not None:
+        print(value(m.u[0]))
+    else:
+        print("value of %s is None" % m.u[0].name)
 
     plt.figure(1)
     plt.plot(m.t,x1_list,'-v',label = 'x1')
@@ -99,7 +107,8 @@ def display_values_and_plot(m, file_prefix=None):
     plt.savefig(state_fname)
 
     plt.figure(2)
-    plt.plot(m.t,u_list,'-*')
+    #plt.plot(m.t,u_list,'-*')
+    plt.plot(u_t_list, u_list, '-*')
     plt.xlabel('t')
     plt.ylabel('u (t)')
     plt.title('Control Profile')
