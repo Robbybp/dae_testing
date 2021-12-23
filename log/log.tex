@@ -8,6 +8,7 @@
 \setlength{\parindent}{0pt}
 
 \newcommand{\RP}{RP\vspace{0.1cm}\hrule\vspace{0.2cm}}
+\newcommand{\SN}{SN\vspace{0.1cm}\hrule\vspace{0.2cm}}
 
 \begin{document}
 
@@ -37,6 +38,21 @@ model (like an inequality constraint or the objective)?
 
 To actually make some progress implementing and testing these ideas, I should
 set up a github repo that we can both work in.
+I have set up the github repo and created a \texttt{dae\_testing} package.
+What is the first thing I want to test? A function to get non-discretization,
+non-continuity constraints at a particular point in time.
+
+\medskip
+Concrete tasks:
+\begin{enumerate}
+  \item For radau collocation, write function that correctly identifies
+    non-discretization, non-continuity, equations (constraints) at
+    non-collocation finite element points (which we happen to know is just
+    $t=0$).
+  \item Write the same function that works for Legendre discretziation.
+  \item Test both of these on the homework example.
+  \item Test them on CSTR example
+\end{enumerate}
 
 \section{Dec 21, 2021}
 
