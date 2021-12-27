@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 def make_model():
     model = m = ConcreteModel()
 
-    m.tf = Param(initialize = 1)
+    m.tf = Param(initialize = 3)
     m.t = ContinuousSet(bounds=(0, m.tf))
     m.u = Var(m.t)
 
@@ -52,11 +52,15 @@ def discretize_model(
         m,
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
-        nfe=10,
+        nfe=2,
         ncp=5,
         ):
     discretizer = TransformationFactory(method)
     discretizer.apply_to(m, nfe=nfe, ncp=ncp, scheme=scheme)
+
+
+def discretization_points(m):
+    return m.t.get_finite_elements(), m.t._fe
 
 
 def solve_model(m, tee=True):
@@ -134,8 +138,11 @@ def solve_and_plot_results(
         _generate_variables_in_constraints,
         IncidenceGraphInterface,
     )
-    discretize_model(m, scheme=scheme)
-    constraints = list(m.component_data_objects(Constraint, active=True))
+    discretize_model(m, scheme=scheme, nfe=5, ncp=3)
+    m.disc_pts, m.dics_coll_pts = discretization_points(m)
+    print(m.disc_pts)
+    print(m.dics_coll_pts)
+    '''constraints = list(m.component_data_objects(Constraint, active=True))
     variables = list(_generate_variables_in_constraints(constraints))
     graph = get_incidence_graph(variables, constraints)
     igraph = IncidenceGraphInterface(m)
@@ -144,9 +151,8 @@ def solve_and_plot_results(
     # - Dulmage-Mendelsohn
     # - remove square subsystem
     # - separate connected components
-    import pdb; pdb.set_trace()
     solve_model(m)
-    display_values_and_plot(m, file_prefix=file_prefix)
+    display_values_and_plot(m, file_prefix=file_prefix)'''
 
 
 if __name__ == "__main__":
