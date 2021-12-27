@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 def make_model():
     model = m = ConcreteModel()
 
-    m.tf = Param(initialize = 3)
+    m.tf = Param(initialize = 1)
     m.t = ContinuousSet(bounds=(0, m.tf))
     m.u = Var(m.t)
 
@@ -56,7 +56,10 @@ def discretize_model(
         ncp=5,
         ):
     discretizer = TransformationFactory(method)
-    discretizer.apply_to(m, nfe=nfe, ncp=ncp, scheme=scheme)
+    kwds = {"nfe": nfe, "scheme": scheme}
+    if method == "dae.collocation":
+        kwds["ncp"] = ncp
+    discretizer.apply_to(m, **kwds)
 
 
 def discretization_points(m):
@@ -122,6 +125,42 @@ def display_values_and_plot(m, file_prefix=None):
     plt.savefig(control_fname)
 
 
+def get_non_collocation_finite_element_points(contset):
+    fe_points = contset.get_finite_elements()
+    n_fep = len(fe_points)
+    disc_info = contset.get_discretization_info()
+    if "tau_points" in disc_info:
+        # Normalized collocation points in each finite element
+        #
+        # This list seems to always include zero, for some reason.
+        # But we don't consider zero to be a collocation point (except
+        # maybe in an explicit discretization).
+        colloc_in_fe = disc_info["tau_points"][1:]
+    else:
+        # TODO: what case are we covering here?
+        # This depends on the discretization...
+        # BACKWARD: [1.0], FORWARD: [0.0]
+        colloc_in_fe = [1.0]
+    colloc_in_fe_set = set(colloc_in_fe)
+    include_first = (0.0 in colloc_in_fe_set)
+    include_last = (1.0 in colloc_in_fe_set)
+    include_interior_fe_point = (include_first or include_last)
+    colloc_fe_points = [
+        # FE points that are also collocation points
+        p for i, p in enumerate(fe_points)
+        if (
+            (i == 0 and include_first)
+            or (i == n_fep - 1 and include_last)
+            or (i != 0 and i != n_fep - 1 and include_interior_fe_point)
+        )
+    ]
+    colloc_fe_point_set = set(colloc_fe_points)
+    non_colloc_fe_points = [
+        p for p in fe_points if p not in colloc_fe_point_set
+    ]
+    return non_colloc_fe_points
+
+
 def solve_and_plot_results(
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
@@ -130,6 +169,8 @@ def solve_and_plot_results(
         file_prefix = "radau_"
     elif scheme == "LAGRANGE-LEGENDRE":
         file_prefix = "legendre_"
+    elif scheme == "BACKWARD":
+        file_prefix = "backward_"
     else:
         raise ValueError()
     m = make_model()
@@ -138,10 +179,13 @@ def solve_and_plot_results(
         _generate_variables_in_constraints,
         IncidenceGraphInterface,
     )
-    discretize_model(m, scheme=scheme, nfe=5, ncp=3)
+    discretize_model(m, method=method, scheme=scheme, nfe=5, ncp=1)
     m.disc_pts, m.dics_coll_pts = discretization_points(m)
     print(m.disc_pts)
     print(m.dics_coll_pts)
+    for key, val in m.t.get_discretization_info().items():
+        print(key, val)
+    print(get_non_collocation_finite_element_points(m.t))
     '''constraints = list(m.component_data_objects(Constraint, active=True))
     variables = list(_generate_variables_in_constraints(constraints))
     graph = get_incidence_graph(variables, constraints)
@@ -156,4 +200,7 @@ def solve_and_plot_results(
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE")
+    solve_and_plot_results(
+        method="dae.collocation",
+        scheme="LAGRANGE-LEGENDRE",
+    )
