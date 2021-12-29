@@ -27,6 +27,39 @@ def make_model():
 
     m.obj = Objective(expr=m.x3[m.tf])
 
+    def _init(m):
+        yield m.x1[0] == 0
+        yield m.x2[0] == -1
+        yield m.x3[0] == 0
+    m.init_conditions = ConstraintList(rule=_init)
+    return m
+
+def Constraint_definitions(m,t):
+    def _x1dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx1dt[t] == m.x2[t]
+    m.x1dot = Constraint(m.t, rule=_x1dot)
+
+    def _x2dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx2dt[t] == -m.x2[t] + m.u[t]
+    m.x2dot = Constraint(m.t, rule=_x2dot)
+
+    def _x3dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
+    m.x3dot = Constraint(m.t, rule=_x3dot)
+
+#Constrain_definitions ignores these constraints at non-collocation, 
+#discretization points
+
+def Constraint_definitions_old(m,t):
     def _x1dot(m, t):
         return m.dx1dt[t] == m.x2[t]
     m.x1dot = Constraint(m.t, rule=_x1dot)
@@ -39,24 +72,55 @@ def make_model():
         return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
     m.x3dot = Constraint(m.t, rule=_x3dot)
 
-    def _init(m):
-        yield m.x1[0] == 0
-        yield m.x2[0] == -1
-        yield m.x3[0] == 0
-    m.init_conditions = ConstraintList(rule=_init)
-
-    return m
+#Constraint_definitions_old doesn't ignore constraints at 
+#non-collocation discretization points
 
 
 def discretize_model(
         m,
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
-        nfe=10,
-        ncp=5,
+        nfe= 2,
+        ncp=3,
         ):
     discretizer = TransformationFactory(method)
     discretizer.apply_to(m, nfe=nfe, ncp=ncp, scheme=scheme)
+    
+
+def discretization_points(m):
+    return m.t.get_finite_elements(), \
+        m.t.get_discretization_info()['tau_points']
+
+#m.t.get_finite_elements = These are all discretization points 
+#m.t.tau_pts = These are roots of polynomials including 0 
+#as an additional element
+
+
+def convert_taupts_to_cp(m, nfe):
+    h = m.tf/nfe
+    cp = []
+    for i in m.disc_pts[:-1] :
+        for j in m.col_roots[1:]:
+            cp.append(i + h*j)
+    return cp
+
+#These convert the polynomial roots to collocation points between 
+#each of the finite element boundaries.
+
+def non_coll_dicretization_pts(m):
+    round_disc_pts = []
+    round_cp = []
+    for i in m.disc_pts: 
+        round_disc_pts.append(round(i, 4))
+    for i in m.cp:
+        round_cp.append(round(i,4))
+        
+    non_coll_disc_pts = list(set(round_disc_pts) - set(round_cp))
+    return non_coll_disc_pts
+
+#This function returns the dicretization points which are not collocation points
+#If we don't round the items in the list we have problems with list comparison. 
+#0.3333 is not same as 0.3333333
 
 
 def solve_model(m, tee=True):
@@ -121,6 +185,8 @@ def display_values_and_plot(m, file_prefix=None):
 def solve_and_plot_results(
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
+        nfe= 2,
+        ncp=3
         ):
     if scheme == "LAGRANGE-RADAU":
         file_prefix = "radau_"
@@ -134,7 +200,18 @@ def solve_and_plot_results(
         _generate_variables_in_constraints,
         IncidenceGraphInterface,
     )
-    discretize_model(m, scheme=scheme)
+    discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
+    m.disc_pts, m.col_roots = discretization_points(m)
+
+    m.cp = convert_taupts_to_cp(m,nfe = nfe)
+    
+    m.non_coll_disc_pts = non_coll_dicretization_pts(m)
+    
+    print(m.non_coll_disc_pts)
+    Constraint_definitions(m, m.t)
+    
+    
+    
     constraints = list(m.component_data_objects(Constraint, active=True))
     variables = list(_generate_variables_in_constraints(constraints))
     graph = get_incidence_graph(variables, constraints)
@@ -144,10 +221,9 @@ def solve_and_plot_results(
     # - Dulmage-Mendelsohn
     # - remove square subsystem
     # - separate connected components
-    import pdb; pdb.set_trace()
     solve_model(m)
     display_values_and_plot(m, file_prefix=file_prefix)
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE")
+    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe =10 , ncp = 4)
