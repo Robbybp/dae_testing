@@ -114,7 +114,7 @@ def non_coll_dicretization_pts(m):
         round_disc_pts.append(round(i, 4))
     for i in m.cp:
         round_cp.append(round(i,4))
-        
+
     non_coll_disc_pts = list(set(round_disc_pts) - set(round_cp))
     return non_coll_disc_pts
 
