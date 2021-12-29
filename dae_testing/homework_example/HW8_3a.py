@@ -213,12 +213,6 @@ def solve_and_plot_results(
     constraints = list(m.component_data_objects(Constraint, active=True))
     variables = list(_generate_variables_in_constraints(constraints))
     graph = get_incidence_graph(variables, constraints)
-    igraph = IncidenceGraphInterface(m)
-    var_dmp, con_dmp = igraph.dulmage_mendelsohn()
-    # TODO:
-    # - Dulmage-Mendelsohn
-    # - remove square subsystem
-    # - separate connected components
     solve_model(m)
     display_values_and_plot(m, file_prefix=file_prefix)
 
