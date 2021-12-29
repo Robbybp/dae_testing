@@ -27,6 +27,39 @@ def make_model():
 
     m.obj = Objective(expr=m.x3[m.tf])
 
+    def _init(m):
+        yield m.x1[0] == 0
+        yield m.x2[0] == -1
+        yield m.x3[0] == 0
+    m.init_conditions = ConstraintList(rule=_init)
+    return m
+
+def Constraint_definitions(m,t):
+    def _x1dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx1dt[t] == m.x2[t]
+    m.x1dot = Constraint(m.t, rule=_x1dot)
+
+    def _x2dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx2dt[t] == -m.x2[t] + m.u[t]
+    m.x2dot = Constraint(m.t, rule=_x2dot)
+
+    def _x3dot(m, t):
+        if t in m.non_coll_disc_pts: 
+            return Constraint.Skip
+        else:
+            return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
+    m.x3dot = Constraint(m.t, rule=_x3dot)
+
+#Constrain_definitions ignores these constraints at non-collocation, 
+#discretization points
+
+def Constraint_definitions_old(m,t):
     def _x1dot(m, t):
         return m.dx1dt[t] == m.x2[t]
     m.x1dot = Constraint(m.t, rule=_x1dot)
@@ -39,25 +72,20 @@ def make_model():
         return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
     m.x3dot = Constraint(m.t, rule=_x3dot)
 
-    def _init(m):
-        yield m.x1[0] == 0
-        yield m.x2[0] == -1
-        yield m.x3[0] == 0
-    m.init_conditions = ConstraintList(rule=_init)
-
-    return m
+#Constraint_definitions_old doesn't ignore constraints at 
+#non-collocation discretization points
 
 
 def discretize_model(
         m,
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
-        nfe=10,
-        ncp=5,
+        nfe= 2,
+        ncp=3,
         ):
     discretizer = TransformationFactory(method)
     discretizer.apply_to(m, nfe=nfe, ncp=ncp, scheme=scheme)
-
+    
 
 def solve_model(m, tee=True):
     ipopt = SolverFactory("ipopt")
@@ -118,9 +146,51 @@ def display_values_and_plot(m, file_prefix=None):
     plt.savefig(control_fname)
 
 
+def get_non_collocation_finite_element_points(contset):
+    fe_points = contset.get_finite_elements()
+    n_fep = len(fe_points)
+    disc_info = contset.get_discretization_info()
+    if "tau_points" in disc_info:
+        # Normalized collocation points in each finite element
+        #
+        # This list seems to always include zero, for some reason.
+        # But we don't consider zero to be a collocation point (except
+        # maybe in an explicit discretization).
+        colloc_in_fe = disc_info["tau_points"][1:]
+    else:
+        # TODO: what case are we covering here?
+        # This depends on the discretization...
+        # BACKWARD: [1.0], FORWARD: [0.0]
+        colloc_in_fe = [1.0]
+    colloc_in_fe_set = set(colloc_in_fe)
+    include_first = (0.0 in colloc_in_fe_set)
+    #include_first is true if 0 is in colloc_in_fe_set
+    include_last = (1.0 in colloc_in_fe_set)
+    #include_last = true if 1 is in colloc_in_fe_set
+    include_interior_fe_point = (include_first or include_last)
+    #true if include_first is true or include_last is true
+    colloc_fe_points = [
+        # FE points that are also collocation points
+        p for i, p in enumerate(fe_points)
+        if (
+            (i == 0 and include_first)
+            or (i == n_fep - 1 and include_last)
+            or (i != 0 and i != n_fep - 1 and include_interior_fe_point)
+        )
+    ]
+   
+    
+    colloc_fe_point_set = set(colloc_fe_points)
+    non_colloc_fe_points = [
+        p for p in fe_points if p not in colloc_fe_point_set
+    ]
+    return non_colloc_fe_points
+
 def solve_and_plot_results(
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
+        nfe= 2,
+        ncp=3
         ):
     if scheme == "LAGRANGE-RADAU":
         file_prefix = "radau_"
@@ -134,20 +204,17 @@ def solve_and_plot_results(
         _generate_variables_in_constraints,
         IncidenceGraphInterface,
     )
-    discretize_model(m, scheme=scheme)
-    constraints = list(m.component_data_objects(Constraint, active=True))
-    variables = list(_generate_variables_in_constraints(constraints))
-    graph = get_incidence_graph(variables, constraints)
-    igraph = IncidenceGraphInterface(m)
-    var_dmp, con_dmp = igraph.dulmage_mendelsohn()
-    # TODO:
-    # - Dulmage-Mendelsohn
-    # - remove square subsystem
-    # - separate connected components
-    import pdb; pdb.set_trace()
+    discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
+    
+    m.non_coll_disc_pts = get_non_collocation_finite_element_points(m.t)
+    #print(m.non_coll_disc_pts, non_coll_fe_pts)
+    Constraint_definitions(m, m.t)
+    
+
+
     solve_model(m)
     display_values_and_plot(m, file_prefix=file_prefix)
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE")
+    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe =10 , ncp = 4)
