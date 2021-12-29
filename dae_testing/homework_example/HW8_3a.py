@@ -204,14 +204,12 @@ def solve_and_plot_results(
     m.disc_pts, m.col_roots = discretization_points(m)
 
     m.cp = convert_taupts_to_cp(m,nfe = nfe)
-    
+
     m.non_coll_disc_pts = non_coll_dicretization_pts(m)
-    
+
     print(m.non_coll_disc_pts)
     Constraint_definitions(m, m.t)
-    
-    
-    
+
     constraints = list(m.component_data_objects(Constraint, active=True))
     variables = list(_generate_variables_in_constraints(constraints))
     graph = get_incidence_graph(variables, constraints)
