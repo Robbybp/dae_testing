@@ -186,17 +186,8 @@ def solve_and_plot_results(
     for key, val in m.t.get_discretization_info().items():
         print(key, val)
     print(get_non_collocation_finite_element_points(m.t))
-    '''constraints = list(m.component_data_objects(Constraint, active=True))
-    variables = list(_generate_variables_in_constraints(constraints))
-    graph = get_incidence_graph(variables, constraints)
-    igraph = IncidenceGraphInterface(m)
-    var_dmp, con_dmp = igraph.dulmage_mendelsohn()
-    # TODO:
-    # - Dulmage-Mendelsohn
-    # - remove square subsystem
-    # - separate connected components
     solve_model(m)
-    display_values_and_plot(m, file_prefix=file_prefix)'''
+    display_values_and_plot(m, file_prefix=file_prefix)
 
 
 if __name__ == "__main__":
