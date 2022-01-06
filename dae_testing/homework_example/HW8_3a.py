@@ -9,6 +9,7 @@ from pyomo.environ import *
 from pyomo.dae import *
 import numpy as np
 import matplotlib.pyplot as plt
+from pyomo.util.subsystems import TemporarySubsystemManager
 
 def make_model():
     model = m = ConcreteModel()
@@ -26,40 +27,6 @@ def make_model():
     m.dx3dt = DerivativeVar(m.x3, wrt = m.t)
 
     m.obj = Objective(expr=m.x3[m.tf])
-
-    def _init(m):
-        yield m.x1[0] == 0
-        yield m.x2[0] == -1
-        yield m.x3[0] == 0
-    m.init_conditions = ConstraintList(rule=_init)
-    return m
-
-def Constraint_definitions(m,t):
-    def _x1dot(m, t):
-        if t in m.non_coll_disc_pts: 
-            return Constraint.Skip
-        else:
-            return m.dx1dt[t] == m.x2[t]
-    m.x1dot = Constraint(m.t, rule=_x1dot)
-
-    def _x2dot(m, t):
-        if t in m.non_coll_disc_pts: 
-            return Constraint.Skip
-        else:
-            return m.dx2dt[t] == -m.x2[t] + m.u[t]
-    m.x2dot = Constraint(m.t, rule=_x2dot)
-
-    def _x3dot(m, t):
-        if t in m.non_coll_disc_pts: 
-            return Constraint.Skip
-        else:
-            return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
-    m.x3dot = Constraint(m.t, rule=_x3dot)
-
-#Constrain_definitions ignores these constraints at non-collocation, 
-#discretization points
-
-def Constraint_definitions_old(m,t):
     def _x1dot(m, t):
         return m.dx1dt[t] == m.x2[t]
     m.x1dot = Constraint(m.t, rule=_x1dot)
@@ -72,9 +39,12 @@ def Constraint_definitions_old(m,t):
         return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
     m.x3dot = Constraint(m.t, rule=_x3dot)
 
-#Constraint_definitions_old doesn't ignore constraints at 
-#non-collocation discretization points
-
+    def _init(m):
+        yield m.x1[0] == 0
+        yield m.x2[0] == -1
+        yield m.x3[0] == 0
+    m.init_conditions = ConstraintList(rule=_init)
+    return m
 
 def discretize_model(
         m,
@@ -164,11 +134,8 @@ def get_non_collocation_finite_element_points(contset):
         colloc_in_fe = [1.0]
     colloc_in_fe_set = set(colloc_in_fe)
     include_first = (0.0 in colloc_in_fe_set)
-    #include_first is true if 0 is in colloc_in_fe_set
     include_last = (1.0 in colloc_in_fe_set)
-    #include_last = true if 1 is in colloc_in_fe_set
     include_interior_fe_point = (include_first or include_last)
-    #true if include_first is true or include_last is true
     colloc_fe_points = [
         # FE points that are also collocation points
         p for i, p in enumerate(fe_points)
@@ -178,16 +145,56 @@ def get_non_collocation_finite_element_points(contset):
             or (i != 0 and i != n_fep - 1 and include_interior_fe_point)
         )
     ]
-   
-    
     colloc_fe_point_set = set(colloc_fe_points)
     non_colloc_fe_points = [
         p for p in fe_points if p not in colloc_fe_point_set
     ]
     return non_colloc_fe_points
 
+def get_constraints(m,non_coll_disc_pts, cont_constraints):
+    deactivate_constraints = []
+    activate_constraints = []
+    for c in m.component_data_objects(ctype = Constraint, active=True):
+        if c.index() in non_coll_disc_pts:
+            for name in cont_constraints:
+                if name in c.name:
+                    activate_constraints.append(c)
+                    print('In active constraints', c.name)
+    
+            deactivate_constraints.append(c)
+            print(c)
+    
+    d_con = list(set(deactivate_constraints) ^ set(activate_constraints))
+    
+    #Returns a list with the constraints that are not continuity constraints 
+    #at non-collocation FE points which need to be deactivated
+
+    
+    return d_con
+
+
+def continuity_constraints(m):
+    cont_constraints = []
+    for d in m.component_objects(DerivativeVar):
+        d_name = d.get_state_var()
+        var_name = d.index_set()
+        c_name = str(d_name) + '_' + str(var_name) + '_cont_eq'
+        cont_constraints.append(c_name)
+        
+        #Returns a list with the names of the constraints which are 
+        #continuity constraints
+    return cont_constraints
+        
+
+''' 
+1) The state profile is different in case of RADAU and LEGENDRE 
+2) If variables are indexed by 2 continuous sets do the continuity constraints 
+    still have the same form?
+3) What about discretization constraints? '''
+
+    
 def solve_and_plot_results(
-        method="dae.collocation",
+        method="dae.collocation",   
         scheme="LAGRANGE-RADAU",
         nfe= 2,
         ncp=3
@@ -199,22 +206,20 @@ def solve_and_plot_results(
     else:
         raise ValueError()
     m = make_model()
-    from pyomo.contrib.incidence_analysis.interface import (
-        get_incidence_graph,
-        _generate_variables_in_constraints,
-        IncidenceGraphInterface,
-    )
+    cont_constraints = continuity_constraints(m)
     discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
+    non_coll_disc_pts = get_non_collocation_finite_element_points(m.t)
+    d_con = get_constraints(m,non_coll_disc_pts, cont_constraints)
     
-    m.non_coll_disc_pts = get_non_collocation_finite_element_points(m.t)
-    #print(m.non_coll_disc_pts, non_coll_fe_pts)
-    Constraint_definitions(m, m.t)
     
-
-
-    solve_model(m)
+    with TemporarySubsystemManager(
+            to_deactivate=d_con
+            ):
+        solve_model(m)
+        
+        
     display_values_and_plot(m, file_prefix=file_prefix)
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe =10 , ncp = 4)
+    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe =10, ncp = 5)
