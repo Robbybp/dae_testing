@@ -159,16 +159,16 @@ def get_constraints(m,non_coll_disc_pts, cont_constraints):
             for name in cont_constraints:
                 if name in c.name:
                     activate_constraints.append(c)
-                    print('In active constraints', c.name)
+                    
     
             deactivate_constraints.append(c)
-            print(c)
+        
     
     d_con = list(set(deactivate_constraints) ^ set(activate_constraints))
-    
-    #Returns a list with the constraints that are not continuity constraints 
-    #at non-collocation FE points which need to be deactivated
-
+    '''
+    Returns a list with the constraints that are not continuity constraints 
+    at non-collocation FE points which need to be deactivated
+    '''
     
     return d_con
 
@@ -180,17 +180,12 @@ def continuity_constraints(m):
         var_name = d.index_set()
         c_name = str(d_name) + '_' + str(var_name) + '_cont_eq'
         cont_constraints.append(c_name)
-        
-        #Returns a list with the names of the constraints which are 
+        '''
+        Returns a list with the names of the constraints which are 
         #continuity constraints
+        '''
     return cont_constraints
         
-
-''' 
-1) The state profile is different in case of RADAU and LEGENDRE 
-2) If variables are indexed by 2 continuous sets do the continuity constraints 
-    still have the same form?
-3) What about discretization constraints? '''
 
     
 def solve_and_plot_results(
@@ -219,6 +214,12 @@ def solve_and_plot_results(
         
         
     display_values_and_plot(m, file_prefix=file_prefix)
+    
+    ''' 
+    1) The state profile is different in case of RADAU and LEGENDRE 
+    2) If variables are indexed by 2 continuous sets do the continuity constraints 
+    still have the same form?
+    3) What about discretization constraints? '''
 
 
 if __name__ == "__main__":
