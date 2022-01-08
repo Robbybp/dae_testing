@@ -12,6 +12,54 @@
 
 \begin{document}
 
+\section{Jan 8, 2022}
+\RP
+The github repo has been set up, and we have a function for identifying
+non-collocation finite element points.
+
+\vspace{0.5cm}\hrule\vspace{0.5cm}
+
+Our next steps are to:
+\begin{enumerate}
+  \item Identify non-continuity, non-discretization constraints at
+    non-collocation finite element points.
+    These can be deactivated with \texttt{TemporarySubsystemManager}
+    and solved as normal. The input, algebraic, and derivative variables
+    at these points should not be included in the solve, which should
+    lead to a non-degenerate KKT matrix.
+    This is probably something we should check. We can't just check degeneracy
+    of the equality Jacobian as it will be rectangular.
+
+    (TODO: Should we deactivate other ``time-linking constraints'', such as
+    those involving an integral, like a PI control law? -- yes, I believe
+    these constraints should still be deactivated.)
+  \item Invalidate input, algebraic, and derivative variables that were
+    not sent to the solver (set values to None). How to identify these
+    variables? Everything except differential variables? Or should we
+    actually look for variables that don't appear in any constraints/objective
+    that were sent to the solver? Ideally these are the same. Under what
+    assumptions?
+  \item Validate assumption: input, algebraic, and derivative variables
+    at non-collocation finite element points don't appear other than in the
+    constraints we deactivate. The first step here is to identify these
+    variables. Then we can check that they don't appear in active constraints.
+  \item These variables can then be plotted at points where they are
+    valid (collocation points).
+  \item A stretch goal would be to:
+    \begin{enumerate}
+      \item For some ``sufficient subset'' of input and algebraic variables
+	(may have to be specified by user -- probably not unique),
+	add constraints that specify these variables, likely by some
+	interpolation.
+      \item Assemble each system of equations (at each non-colloc FE point)
+	that was deactivated (due to degeneracy), along with the new constraints
+	to specify these systems, and solve each individually as a square
+	system.
+    \end{enumerate}
+\end{enumerate}
+This is a lot to code. It will be imporant to have a very clear motivation
+for each addition.
+
 \section{Dec 22, 2021}
 \RP
 I have an approach I think will work for Radau collocation.
