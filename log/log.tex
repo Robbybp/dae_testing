@@ -60,6 +60,25 @@ Our next steps are to:
 This is a lot to code. It will be imporant to have a very clear motivation
 for each addition.
 
+\vspace{0.5cm}\hrule\vspace{0.5cm}
+
+Reviewing Sakshi's code\dots
+
+Works! Input variables at non-collocation finite element points are excluded
+from the plotted control profile, because they have values of None, because
+they were not sent to the solver, because the constraints they appear in
+have been deactivated.
+A couple directions we can go from here:
+\begin{itemize}
+  \item Start writing tests for functions we have so far. Get them
+    ``PR-ready''
+  \item In this example, ``wrong'' values are plotted if the inputs are
+    initialized, say to $-1$. We could identify variables that were not
+    sent to the solver, validate that they were not sent to the solver
+    (don't appear in active constraints or objective), ``invalidate'' them
+    (by setting them to None), and make sure we don't plot their values.
+\end{itemize}
+
 \section{Dec 22, 2021}
 \RP
 I have an approach I think will work for Radau collocation.
