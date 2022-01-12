@@ -46,16 +46,17 @@ def make_model():
     m.init_conditions = ConstraintList(rule=_init)
     return m
 
+
 def discretize_model(
         m,
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
-        nfe= 2,
+        nfe=2,
         ncp=3,
         ):
     discretizer = TransformationFactory(method)
     discretizer.apply_to(m, nfe=nfe, ncp=ncp, scheme=scheme)
-    
+
 
 def solve_model(m, tee=True):
     ipopt = SolverFactory("ipopt")
@@ -159,17 +160,14 @@ def get_constraints(m,non_coll_disc_pts, cont_constraints):
             for name in cont_constraints:
                 if name in c.name:
                     activate_constraints.append(c)
-                    
-    
             deactivate_constraints.append(c)
-        
-    
+
     d_con = list(set(deactivate_constraints) ^ set(activate_constraints))
     '''
     Returns a list with the constraints that are not continuity constraints 
     at non-collocation FE points which need to be deactivated
     '''
-    
+
     return d_con
 
 
@@ -185,14 +183,13 @@ def continuity_constraints(m):
         #continuity constraints
         '''
     return cont_constraints
-        
 
-    
+
 def solve_and_plot_results(
-        method="dae.collocation",   
+        method="dae.collocation",
         scheme="LAGRANGE-RADAU",
         nfe= 2,
-        ncp=3
+        ncp=3,
         ):
     if scheme == "LAGRANGE-RADAU":
         file_prefix = "radau_"
@@ -205,16 +202,14 @@ def solve_and_plot_results(
     discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
     non_coll_disc_pts = get_non_collocation_finite_element_points(m.t)
     d_con = get_constraints(m,non_coll_disc_pts, cont_constraints)
-    
-    
+
     with TemporarySubsystemManager(
             to_deactivate=d_con
             ):
         solve_model(m)
-        
-        
+
     display_values_and_plot(m, file_prefix=file_prefix)
-    
+
     ''' 
     1) The state profile is different in case of RADAU and LEGENDRE 
     2) If variables are indexed by 2 continuous sets do the continuity constraints 
@@ -223,4 +218,4 @@ def solve_and_plot_results(
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe =10, ncp = 5)
+    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe=10, ncp=5)
