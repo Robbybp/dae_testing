@@ -13,6 +13,8 @@ from pyomo.util.subsystems import TemporarySubsystemManager
 from pyomo.common.collections import ComponentSet
 from pyomo.dae.flatten import flatten_dae_components
 
+from dae_testing.dae.initialize import get_non_collocation_finite_element_points
+
 def make_model():
     model = m = ConcreteModel()
 
@@ -37,8 +39,11 @@ def make_model():
         return m.dx2dt[t] == -m.x2[t] + m.u[t]
     m.x2dot = Constraint(m.t, rule=_x2dot)
 
+    #def _x3dot(m, t):
+    #    return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
+    #m.x3dot = Constraint(m.t, rule=_x3dot)
     def _x3dot(m, t):
-        return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
+        return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]
     m.x3dot = Constraint(m.t, rule=_x3dot)
 
     def _init(m):
@@ -117,42 +122,6 @@ def display_values_and_plot(m, file_prefix=None):
     if file_prefix is not None:
         control_fname = file_prefix + control_fname
     plt.savefig(control_fname)
-
-
-def get_non_collocation_finite_element_points(contset):
-    fe_points = contset.get_finite_elements()
-    n_fep = len(fe_points)
-    disc_info = contset.get_discretization_info()
-    if "tau_points" in disc_info:
-        # Normalized collocation points in each finite element
-        #
-        # This list seems to always include zero, for some reason.
-        # But we don't consider zero to be a collocation point (except
-        # maybe in an explicit discretization).
-        colloc_in_fe = disc_info["tau_points"][1:]
-    else:
-        # TODO: what case are we covering here?
-        # This depends on the discretization...
-        # BACKWARD: [1.0], FORWARD: [0.0]
-        colloc_in_fe = [1.0]
-    colloc_in_fe_set = set(colloc_in_fe)
-    include_first = (0.0 in colloc_in_fe_set)
-    include_last = (1.0 in colloc_in_fe_set)
-    include_interior_fe_point = (include_first or include_last)
-    colloc_fe_points = [
-        # FE points that are also collocation points
-        p for i, p in enumerate(fe_points)
-        if (
-            (i == 0 and include_first)
-            or (i == n_fep - 1 and include_last)
-            or (i != 0 and i != n_fep - 1 and include_interior_fe_point)
-        )
-    ]
-    colloc_fe_point_set = set(colloc_fe_points)
-    non_colloc_fe_points = [
-        p for p in fe_points if p not in colloc_fe_point_set
-    ]
-    return non_colloc_fe_points
 
 
 def get_constraints(m,non_coll_disc_pts, cont_constraints):
