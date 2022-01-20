@@ -39,11 +39,8 @@ def make_model():
         return m.dx2dt[t] == -m.x2[t] + m.u[t]
     m.x2dot = Constraint(m.t, rule=_x2dot)
 
-    #def _x3dot(m, t):
-    #    return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
-    #m.x3dot = Constraint(m.t, rule=_x3dot)
     def _x3dot(m, t):
-        return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]
+        return m.dx3dt[t] == m.x1[t]**2 + m.x2[t]**2 + 0.005*m.u[t]**2
     m.x3dot = Constraint(m.t, rule=_x3dot)
 
     def _init(m):
