@@ -13,8 +13,11 @@ from pyomo.util.subsystems import TemporarySubsystemManager
 from pyomo.common.collections import ComponentSet
 from pyomo.dae.flatten import flatten_dae_components
 
-from initialize import (get_non_collocation_finite_element_points,
-                        continuity_constraints, not_cont_constraints_nc_fep)
+from initialize import (
+    get_non_collocation_finite_element_points,
+    get_continuity_constraint_names, 
+    not_cont_constraints_nc_fep
+)
 
 def make_model():
     model = m = ConcreteModel()
@@ -135,10 +138,11 @@ def solve_and_plot_results(
     else:
         raise ValueError()
     m = make_model()
-    cont_constraints = continuity_constraints(m)
+    cont_constraints = get_continuity_constraint_names(m, [m.t])
     discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
     non_coll_fe_pts = get_non_collocation_finite_element_points(m.t)
-    d_con = not_cont_constraints_nc_fep(m,[m.t],non_coll_fe_pts,cont_constraints)
+    d_con = not_cont_constraints_nc_fep(m,[m.t],
+                                        non_coll_fe_pts,cont_constraints)
     with TemporarySubsystemManager(
             to_deactivate=d_con
             ):
