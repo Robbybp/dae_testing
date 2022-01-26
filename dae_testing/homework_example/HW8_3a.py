@@ -13,7 +13,8 @@ from pyomo.util.subsystems import TemporarySubsystemManager
 from pyomo.common.collections import ComponentSet
 from pyomo.dae.flatten import flatten_dae_components
 
-from dae_testing.dae.initialize import get_non_collocation_finite_element_points
+from initialize import (get_non_collocation_finite_element_points,
+                        continuity_constraints, not_cont_constraints_nc_fep)
 
 def make_model():
     model = m = ConcreteModel()
@@ -121,72 +122,6 @@ def display_values_and_plot(m, file_prefix=None):
     plt.savefig(control_fname)
 
 
-def get_constraints(m,non_coll_disc_pts, cont_constraints):
-    deactivate_constraints = []
-    activate_constraints = []
-    for c in m.component_data_objects(ctype = Constraint, active=True):
-        if c.index() in non_coll_disc_pts:
-            for name in cont_constraints:
-                if name in c.name:
-                    activate_constraints.append(c)
-            deactivate_constraints.append(c)
-
-    d_con = list(set(deactivate_constraints) ^ set(activate_constraints))
-
-
-def continuity_constraints(m):
-    
-    '''
-    Returns a list with the names of the constraints which are 
-    continuity constraints
-    '''
-    
-    cont_constraints = set()
-    for d in m.component_objects(DerivativeVar):
-        state_var = d.get_state_var()
-        cont_set = d.get_continuousset_list()
-        set_names = "_".join([s.local_name for s in cont_set])
-        c_name = state_var.name + '_' + set_names + '_cont_eq'
-        cont_constraints.add(c_name)
-    return cont_constraints
-
-
-def not_cont_constraints_nc_fep(m,non_coll_disc_pts, cont_constraints):
-    
-    '''
-    Returns constraints which are not continuity constraints at non coll
-    fe point
-    '''
-
-    scalar_cons, dae_cons = flatten_dae_components(m, m.t, Constraint)
-    cons_at_non_colloc_fe = [[con[t] for con in dae_cons if t in con 
-                              and con[t].parent_component().name not in 
-                              cont_constraints] for t in non_coll_disc_pts]
-    d_con = sum(cons_at_non_colloc_fe,[])
-
-    '''
-    The above implementation does not deactivate the initial conditions
-    This now gives state profiles which look similar to Radau. In the 
-    previous implememation the initial conditions were getting deactivated
-    '''
-
-    return d_con
-
-
-def continuity_constraints(m):
-    cont_constraints = []
-    for d in m.component_objects(DerivativeVar):
-        d_name = d.get_state_var()
-        var_name = d.index_set()
-        c_name = str(d_name) + '_' + str(var_name) + '_cont_eq'
-        cont_constraints.append(c_name)
-        '''
-        Returns a list with the names of the constraints which are 
-        #continuity constraints
-        '''
-    return cont_constraints
-
-
 def solve_and_plot_results(
         method="dae.collocation",
         scheme="LAGRANGE-RADAU",
@@ -202,9 +137,8 @@ def solve_and_plot_results(
     m = make_model()
     cont_constraints = continuity_constraints(m)
     discretize_model(m, scheme=scheme, nfe = nfe, ncp = ncp)
-    non_coll_disc_pts = get_non_collocation_finite_element_points(m.t)
-    d_con = not_cont_constraints_nc_fep(m,non_coll_disc_pts,cont_constraints)
-    
+    non_coll_fe_pts = get_non_collocation_finite_element_points(m.t)
+    d_con = not_cont_constraints_nc_fep(m,[m.t],non_coll_fe_pts,cont_constraints)
     with TemporarySubsystemManager(
             to_deactivate=d_con
             ):
@@ -214,11 +148,14 @@ def solve_and_plot_results(
 
     ''' 
     1) The state profile is different in case of RADAU and LEGENDRE 
-    2) If variables are indexed by 2 continuous sets do the continuity constraints 
-    still have the same form?
+    2) If variables are indexed by 2 continuous sets do the continuity 
+    constraints still have the same form?
     3) What about discretization constraints?
     '''
 
 
 if __name__ == "__main__":
-    solve_and_plot_results(scheme="LAGRANGE-RADAU", nfe=10, ncp=5)
+    solve_and_plot_results(scheme="LAGRANGE-LEGENDRE", nfe=10, ncp=5)
+    
+    
+    
