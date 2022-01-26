@@ -1,5 +1,8 @@
 from pyomo.core.base.component import ComponentData
 from pyomo.dae.flatten import flatten_dae_components
+from pyomo.dae import DerivativeVar
+from pyomo.environ import Constraint
+from pyomo.dae.flatten import flatten_dae_components
 
 EXPLICIT_SCHEMES = {
     "FORWARD Difference",
@@ -75,3 +78,52 @@ def get_non_collocation_finite_element_points(contset):
         p for p in fe_points if p not in colloc_fe_point_set
     ]   
     return non_colloc_fe_points
+
+
+def continuity_constraints(m):
+    
+    '''
+    Returns a list with the names of the constraints which are 
+    continuity constraints
+    '''
+    
+    cont_constraints = set()
+    for d in m.component_objects(DerivativeVar):
+        state_var = d.get_state_var()
+        cont_set = d.get_continuousset_list()
+        set_names = "_".join([s.local_name for s in cont_set])
+        c_name = state_var.name + '_' + set_names + '_cont_eq'
+        cont_constraints.add(c_name)
+    return cont_constraints
+
+
+def not_cont_constraints_nc_fep(m, contsetlist, non_coll_fe_pts, cont_constraints):
+    
+    '''
+    Returns constraints which are not continuity constraints at non coll
+    fe point
+    '''
+    deactivate_constraints = []
+    for contset in contsetlist:
+        scalar_cons, dae_cons = flatten_dae_components(m, contset, Constraint)
+        #What is dae_cons??
+        cons_at_non_colloc_fe = [[con[t] for con in dae_cons if t in con 
+                                  and con[t].parent_component().name not in 
+                                  cont_constraints] for t in non_coll_fe_pts]
+        d_con = sum(cons_at_non_colloc_fe,[])
+        deactivate_constraints.append(d_con)
+        
+    deactivate_constraints_all = sum(deactivate_constraints,[])
+    '''for t in non_coll_fe_pts:
+        for con in dae_cons:
+            if t in con:
+                print(con[t].name)'''
+
+    '''
+    The above implementation does not deactivate the initial conditions
+    This now gives state profiles which look similar to Radau. In the 
+    previous implememation the initial conditions were getting deactivated
+    
+    '''
+    return deactivate_constraints_all
+
