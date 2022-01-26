@@ -87,24 +87,33 @@ def get_continuity_constraint_names(m, wrt):
     Returns a list with the names of the constraints which are 
     continuity constraints
     '''
-    
+    if isinstance(wrt, list) != True:
+        raise TypeError(
+            "wrt should be of the type list"
+        )
     cont_constraints = set()
     for d in m.component_objects(DerivativeVar):
         state_var = d.get_state_var()
         cont_set = d.get_continuousset_list()
-        if wrt in ComponentSet(cont_set):
-            set_names = "_".join([s.local_name for s in cont_set])
-            c_name = state_var.name + '_' + set_names + '_cont_eq'
-            cont_constraints.add(c_name)
+        for elem in wrt:
+            if elem in ComponentSet(cont_set):
+                set_names = "_".join([s.local_name for s in cont_set])
+                c_name = state_var.name + '_' + set_names + '_cont_eq'
+                cont_constraints.add(c_name)
     return cont_constraints
 
 
-def not_cont_constraints_nc_fep(m, contsetlist, non_coll_fe_pts, cont_constraints):
+def not_cont_constraints_nc_fep(m, contsetlist, non_coll_fe_pts, 
+                                cont_constraints):
     
     '''
     Returns constraints which are not continuity constraints at non coll
     fe point
     '''
+    if isinstance(contsetlist, list) != True:
+        raise TypeError(
+            "contsetlist should have the type list"
+        )
     deactivate_constraints = []
     for contset in contsetlist:
         scalar_cons, dae_cons = flatten_dae_components(m, contset, Constraint)
@@ -116,16 +125,5 @@ def not_cont_constraints_nc_fep(m, contsetlist, non_coll_fe_pts, cont_constraint
         deactivate_constraints.append(d_con)
         
     deactivate_constraints_all = sum(deactivate_constraints,[])
-    '''for t in non_coll_fe_pts:
-        for con in dae_cons:
-            if t in con:
-                print(con[t].name)'''
-
-    '''
-    The above implementation does not deactivate the initial conditions
-    This now gives state profiles which look similar to Radau. In the 
-    previous implememation the initial conditions were getting deactivated
-    
-    '''
     return deactivate_constraints_all
 
