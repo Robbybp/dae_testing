@@ -3,6 +3,7 @@ from pyomo.dae.flatten import flatten_dae_components
 from pyomo.dae import DerivativeVar
 from pyomo.environ import Constraint
 from pyomo.dae.flatten import flatten_dae_components
+from pyomo.common.collections import ComponentSet
 
 EXPLICIT_SCHEMES = {
     "FORWARD Difference",
@@ -80,7 +81,7 @@ def get_non_collocation_finite_element_points(contset):
     return non_colloc_fe_points
 
 
-def continuity_constraints(m):
+def get_continuity_constraint_names(m, wrt):
     
     '''
     Returns a list with the names of the constraints which are 
@@ -91,9 +92,10 @@ def continuity_constraints(m):
     for d in m.component_objects(DerivativeVar):
         state_var = d.get_state_var()
         cont_set = d.get_continuousset_list()
-        set_names = "_".join([s.local_name for s in cont_set])
-        c_name = state_var.name + '_' + set_names + '_cont_eq'
-        cont_constraints.add(c_name)
+        if wrt in ComponentSet(cont_set):
+            set_names = "_".join([s.local_name for s in cont_set])
+            c_name = state_var.name + '_' + set_names + '_cont_eq'
+            cont_constraints.add(c_name)
     return cont_constraints
 
 
