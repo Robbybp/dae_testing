@@ -3,9 +3,14 @@ from pyomo.common.collections import ComponentSet
 import pyomo.environ as pyo
 import pyomo.dae as dae
 
-from dae_testing.dae.initialize import (
+'''from dae_testing.dae.initialize import (
     get_non_collocation_finite_element_points,
     continuity_constraints,
+    get_continuity_constraint_names,
+    not_cont_constraints_nc_fep,
+)'''
+from initialize import  (
+    get_non_collocation_finite_element_points,
     get_continuity_constraint_names,
     not_cont_constraints_nc_fep,
 )
@@ -93,7 +98,7 @@ class TestContinuityConstraints(unittest.TestCase):
         m.cset = dae.ContinuousSet(initialize=[0, 10])
         m.x = pyo.Var(m.cset)
         m.dx = dae.DerivativeVar(m.x, wrt=m.cset)
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         expected_cont_constraints = {'x_cset_cont_eq'}
         self.assertEqual(cont_constraints, expected_cont_constraints)
         
@@ -104,15 +109,15 @@ class TestContinuityConstraints(unittest.TestCase):
         m.x = pyo.Var(m.cset1, m.cset2)
         m.dx1 = dae.DerivativeVar(m.x, wrt=m.cset1)
         m.dx2 = dae.DerivativeVar(m.x, wrt=m.cset2)
-        cont_constraints = continuity_constraints(m)
-        expected_cont_constraints = {'x_cset1_cont_eq', 'x_cset2_cont_eq'}
+        cont_constraints = get_continuity_constraint_names(m, [m.cset1])
+        expected_cont_constraints = {'x_cset1_cont_eq'}
         self.assertEqual(cont_constraints, expected_cont_constraints)
         
     def test_no_derivative_var(self):
         m = pyo.ConcreteModel()
         m.cset = dae.ContinuousSet(initialize=[0, 10])
         m.x = pyo.Var(m.cset)
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         expected_cont_constraints = set()
         self.assertEqual(cont_constraints, expected_cont_constraints)
         
@@ -122,7 +127,7 @@ class TestContinuityConstraints(unittest.TestCase):
         m.x = pyo.Var(m.cset)
         m.dx = dae.DerivativeVar(m.x, wrt=m.cset)
         m.dx2 = dae.DerivativeVar(m.dx, wrt=m.cset)
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         expected_cont_constraints = {'x_cset_cont_eq', 'dx_cset_cont_eq'}
         self.assertEqual(cont_constraints, expected_cont_constraints)
 
@@ -139,7 +144,7 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
             return m.dx[t] == m.x[t]
         m.xdot = pyo.Constraint(m.cset, rule=_xdot)
         
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         disc = pyo.TransformationFactory("dae.collocation")
         disc.apply_to(m, wrt=m.cset, nfe=4, ncp=3, scheme="LAGRANGE-RADAU")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset)
@@ -160,14 +165,15 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
             return m.dx[t] == m.x[t]
         m.xdot = pyo.Constraint(m.cset, rule=_xdot)
         
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         disc = pyo.TransformationFactory("dae.collocation")
         disc.apply_to(m, wrt=m.cset, nfe=4, ncp=3, scheme="LAGRANGE-LEGENDRE")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset)
         d_con = not_cont_constraints_nc_fep(m,[m.cset],non_coll_fe_pts,
                                             cont_constraints)
         
-        expected_d_con = ['xdot[0]', 'xdot[2.5]','xdot[5.0]','xdot[7.5]','xdot[10]']
+        expected_d_con = ['xdot[0]', 'xdot[2.5]','xdot[5.0]','xdot[7.5]',
+                          'xdot[10]']
         self.assertEqual([c.name for c in d_con], [elem for elem in 
                                                    expected_d_con])
         
@@ -181,7 +187,7 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
             return m.dx[t] == m.x[t]
         m.xdot = pyo.Constraint(m.cset, rule=_xdot)
         
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         disc = pyo.TransformationFactory("dae.finite_difference")
         disc.apply_to(m, wrt=m.cset, nfe=4, scheme="FORWARD")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset)
@@ -203,7 +209,7 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
             return m.dx[t] == m.x[t]
         m.xdot = pyo.Constraint(m.cset, rule=_xdot)
         
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         disc = pyo.TransformationFactory("dae.finite_difference")
         disc.apply_to(m, wrt=m.cset, nfe=4, scheme="BACKWARD")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset)
@@ -233,12 +239,12 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
         m.xdot2 = pyo.Constraint(m.cset1, m.cset2, rule=_xdot2)
         
         
-        cont_constraints = continuity_constraints(m)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset])
         disc = pyo.TransformationFactory("dae.collocation")
         disc.apply_to(m, wrt=m.cset1, nfe=4, ncp=3, scheme="LAGRANGE-RADAU")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset1)
-        d_con = not_cont_constraints_nc_fep(m,[m.cset1, m.cset2],non_coll_fe_pts,
-                                            cont_constraints)
+        d_con = not_cont_constraints_nc_fep(m,[m.cset1, m.cset2],
+                                            non_coll_fe_pts, cont_constraints)
         
         expected_d_con = ['xdot1[0,?]','xdot2[0,?]']
         self.assertEqual([c.name for c in d_con], [elem for elem in 
@@ -261,13 +267,13 @@ class TestNotContinuityConsNCFEP(unittest.TestCase):
         m.xdot2 = pyo.Constraint(m.cset1, m.cset2, rule=_xdot2)
         
         
-        cont_constraints = get_continuity_constraint_names(m, m.cset1)
+        cont_constraints = get_continuity_constraint_names(m, [m.cset1])
         disc = pyo.TransformationFactory("dae.collocation")
         disc.apply_to(m, wrt=m.cset1, nfe=4, ncp=3, scheme="LAGRANGE-RADAU")
         disc.apply_to(m, wrt=m.cset2, nfe=4, ncp=3, scheme="LAGRANGE-LEGENDRE")
         non_coll_fe_pts = get_non_collocation_finite_element_points(m.cset1)
-        d_con = not_cont_constraints_nc_fep(m,[m.cset1, m.cset2],non_coll_fe_pts,
-                                            cont_constraints)
+        d_con = not_cont_constraints_nc_fep(m,[m.cset1, m.cset2],
+                                            non_coll_fe_pts, cont_constraints)
 
         expected_d_con = []
         expected_d_con.extend(m.dx2_disc_eq[0, :])
